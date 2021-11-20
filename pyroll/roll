@@ -1,0 +1,104 @@
+import argparse
+import json
+
+from json import dumps
+from re import split, compile
+from random import randint
+
+
+class aggregator:
+    """Object to represent"""
+    def __init__(self) -> None:
+        self.details = {}
+        self.summary = 0
+
+    def add_detail(
+        self,
+        counter: int,
+        command_type: str,
+        command: str, 
+        roll_summary: int = None,
+        roll_history: list = None) -> None:
+        self.details[counter] = {
+            "type": command_type,
+            "command": command,
+            "roll_summary": roll_summary,
+            "roll_history": roll_history
+        }
+        self.update_summary(0 if roll_summary is None else roll_summary)
+    
+    def update_summary(self, roll_summary):
+        self.summary+=roll_summary
+    
+    def formulate_summary(self) -> None:
+        pass
+    
+    def json_output(self) -> json:
+        return dumps(self.details, indent=4)
+
+
+class roller:
+    """Object to represent the rolling of dice"""
+    def __init__(dice, max_value: int, number_of_rolls: int) -> None:
+        dice.max_value = int(max_value)
+        dice.number_of_rolls = int(number_of_rolls)
+        dice.roll_history = []
+        dice.roll_summary = 0
+        dice._roll_dice()
+        dice._agg_roll_history()
+    
+    def _roll_dice(dice) -> None:
+        for roll_iteration in range(dice.number_of_rolls):
+            dice.roll_history.append(randint((dice.max_value - dice.max_value) + 1, dice.max_value))
+    
+    def _agg_roll_history(dice) -> None:
+        summary = 0
+        for roll in dice.roll_history: summary+=roll
+        dice.roll_summary = summary
+
+
+def operator():
+    pass
+
+
+if __name__ == "__main__":
+    # parse arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", type=str, help="User inputted command to parse and calculate")
+    parser.add_argument("-j","--json_output", type=str, help="Output details as json", required=False)
+    user_command = parser.parse_args().command
+
+    # separate commands from operators
+    parsed_command = split(r"(-|\+|\*|\\)",user_command)
+
+    # variable to determine pattern of commands from user input
+    compiled_command_patterns = compile(r"(\d+)d(\d+)|(\d+)")
+
+    # declare aggregator
+    agg = aggregator()
+
+    # loop through parsed_command to determine operations
+    for counter, command in enumerate(parsed_command, start=1):
+        command_type = None
+        # determine whether command is an operator or dice roller command
+        if compiled_command_patterns.search(command):
+            command_type = "roll"
+            split_command = command.split("d")
+            split_command[0] = split_command[0] if split_command[0] != "" else 1
+            dice = roller(split_command[1], split_command[0])
+
+        # terinary operator
+        agg.add_detail(counter, 'operator', command) \
+            if command_type is None else \
+                agg.add_detail(
+                    counter,
+                    command_type,
+                    command,
+                    dice.roll_summary,
+                    dice.roll_history)
+        
+        # remove dice instance
+        if 'dice' in locals():
+            del dice
+
+    print(agg.json_output(), "\n", agg.summary)
